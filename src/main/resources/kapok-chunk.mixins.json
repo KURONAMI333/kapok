@@ -1,0 +1,21 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.kuronami.kapok.mixin.chunk",
+  "plugin": "com.kuronami.kapok.c2me.C2meMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ChunkAccessAccessor",
+    "ChunkLoadWindowMixin",
+    "ChunkMapAccessor",
+    "ChunkMapSendHoldMixin",
+    "ChunkMapStaleUnloadMixin",
+    "LevelChunkPostProcessMixin",
+    "MinecraftServerPostProcessMixin",
+    "ServerChunkCacheGuardMixin",
+    "ServerLevelPostProcessMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

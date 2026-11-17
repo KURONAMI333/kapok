@@ -1,0 +1,84 @@
+// Kapok Core: the service-layer half of Kapok, and the jar that actually ships.
+//
+// This subproject produces the one file a player installs. It is a pure service jar
+// (no neoforge.mods.toml, no mod id) that FML loads into its SERVICE layer, and it
+// carries the Kapok mod jar - the root project's output - inside it under
+// META-INF/kapok/. KapokBundleLocator hands that nested jar to the mod discovery
+// pipeline, which is how a service jar and a mod end up as a single download.
+//
+// Properties such as mod_version / neo_version come from the root gradle.properties;
+// Gradle does not read a subproject's own gradle.properties, so anything specific to
+// this half is set here rather than in a properties file.
+
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+group = 'com.kuronami.kapokcore'
+version = mod_version
+
+base {
+    // The shipped file is the product, so it carries the product's name.
+    archivesName = 'kapok'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    mods {
+        kapokcore {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+dependencies {
+    // Intentionally empty at runtime. The loader classes this jar talks to
+    // (fancymodloader, securejarhandler, modlauncher) are on the compile classpath
+    // through the moddev plugin and are always present in the SERVICE layer.
+
+    testImplementation files(sourceSets.main.compileClasspath)
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    // UnionFileSystem's static initialiser reflects into MethodHandles.Lookup.IMPL_LOOKUP,
+    // so mounting a real jar through cpw.mods.jarhandling needs this. Test JVM only.
+    jvmArgs '--add-opens', 'java.base/java.lang.invoke=ALL-UNNAMED'
+}
+
+tasks.named('jar', Jar) {
+    // The mod half rides inside the service jar. Not under META-INF/jarjar/: that is
+    // Jar-in-Jar's directory, and Jar-in-Jar only looks inside mod files, which a
+    // service jar is not. A separate directory keeps the two mechanisms from being
+    // mistaken for each other.
+    from(rootProject.tasks.named('jar')) {
+        into 'META-INF/kapok'
+    }
+    manifest {
+        attributes(
+                // Pin the module name so it does not follow the file name. The reader
+                // census and the layer walk in FmlLoaderEnvironment identify this jar by
+                // class and service names, not by module, but a stable module name keeps
+                // log lines and stack traces the same across renames.
+                'Automatic-Module-Name': 'com.kuronami.kapokcore',
+                'Implementation-Title': 'Kapok',
+                'Implementation-Version': project.version,
+        )
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

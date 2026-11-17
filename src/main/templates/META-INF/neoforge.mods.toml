@@ -1,0 +1,40 @@
+# Kapok - neoforge.mods.toml
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+
+# Each feature declares its own mixin configuration and applicability checks.
+
+[[mixins]]
+config="kapok-chunk.mixins.json"
+
+[[mixins]]
+config="kapok-map.mixins.json"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
+displayURL="https://www.curseforge.com/minecraft/mc-mods/kapok"
+issueTrackerURL="https://www.curseforge.com/minecraft/mc-mods/kapok/comments"
+logoFile="logo.png"
+description='''
+${mod_description}
+'''
+
+# The chunk guard and the map-preview guard run on whichever side is generating
+# terrain, so a dedicated server gets both.
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neo_version},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"

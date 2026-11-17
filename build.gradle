@@ -1,0 +1,161 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'idea'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = mod_version
+group = mod_group_id
+
+sourceSets.main.resources {
+    srcDir('src/generated/resources')
+    exclude("src/generated/**/.cache")
+}
+
+base {
+    // The mod half. The file a player installs is core/build/libs/kapok-<version>.jar,
+    // which carries this jar inside it; this name only ever shows up nested there.
+    archivesName = 'kapok-mod'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+            // Dev client: Kapok comes from this source set. A bundled Kapok Core
+            // jar in run/mods would surface a second copy of the mod, so the locator is
+            // told to stand down here (KapokBundleLocator honours this property).
+            systemProperty 'kapok.core.bundle', 'off'
+            if (project.hasProperty('quickPlayWorld')) {
+                programArgument '--quickPlaySingleplayer'
+                programArgument project.property('quickPlayWorld')
+            }
+            // Lets an unattended join end by itself, the way the acceptance
+            // subproject's run already does for the bundled launch.
+            if (project.hasProperty('quitAfterJoinSeconds')) {
+                systemProperty 'kapok.diag.quitAfterJoinSeconds', project.property('quitAfterJoinSeconds')
+            }
+            // Diagnostics are JVM properties, not Gradle daemon properties.
+            // Keep this generic seam so an explicit dev-only probe reaches the
+            // forked client without becoming a player-facing setting.
+            if (project.hasProperty('extraJvmArgs')) {
+                jvmArguments.addAll(project.property('extraJvmArgs').toString().tokenize())
+            }
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            // Its own directory, not the client's run/, which holds two
+            // hundred client mods and a world this has no business touching.
+            // eula.txt and server.properties are checked in beside it; the
+            // port there is 25599 so a real server on the usual one is not
+            // in the way.
+            gameDirectory = file('run-server')
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    // Intentionally empty at runtime: keep the jar tiny so it runs on the
+    // same 2-4 GB free hosts whose lag we are explaining.
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Mixin shape checks use ASM supplied by NeoForge at runtime.
+    testImplementation sourceSets.main.compileClasspath.filter { it.name.startsWith("asm") }
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+
+    // The mixin target audit reads the classes the mixins name out of the same
+    // list javac compiled them against — including the patched NeoForge artifact —
+    // rather than assembling its own idea of it. Those jars
+    // are on no test classpath of their own, so the list is handed over here.
+    // Resolved in doFirst: asking for it while the build is being configured makes
+    // moddev produce its artifacts too early.
+    def mixinAuditTargets = sourceSets.main.compileClasspath
+    inputs.files(mixinAuditTargets).withPropertyName('mixinAuditTargets')
+    systemProperty 'kapok.audit.report',
+            layout.buildDirectory.file('reports/mixin-audit.txt').get().asFile.path
+    doFirst {
+        systemProperty 'kapok.audit.targets', mixinAuditTargets.asPath
+    }
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_description        : mod_description,
+            mod_authors            : mod_authors,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

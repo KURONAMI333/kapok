@@ -1,0 +1,2 @@
+# Accepting the Minecraft EULA for this development server.
+eula=true

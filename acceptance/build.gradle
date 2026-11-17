@@ -1,0 +1,50 @@
+// Production-shaped launch. This subproject has no sources of its own, so nothing from
+// the Kapok build reaches the classpath: the client loads exactly what sits in the
+// root project's run/mods/, which is where the shipped core/build/libs/kapok-<v>.jar
+// goes for an acceptance run. That is the only way to exercise the bundle locator the
+// way a player's launcher would.
+//
+// Why not a run in the root project with loadedMods = []: moddev still places the
+// root's build/resources/main on the classpath, FML's classpath locator finds the
+// neoforge.mods.toml there and registers the mod, and its mixins then fail to load
+// because the classes were not exposed (observed 2026-09-05).
+
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    runs {
+        bundle {
+            client()
+            gameDirectory = rootProject.file('run')
+            // Which directory decides which mods the client loads, and this
+            // run loads only what is in it. Pointed at one that holds no
+            // Kapok, it is a client without the mod.
+            if (project.hasProperty('runDir')) {
+                gameDirectory = rootProject.file(project.property('runDir'))
+            }
+            if (project.hasProperty('quickPlayWorld')) {
+                programArgument '--quickPlaySingleplayer'
+                programArgument project.property('quickPlayWorld')
+            }
+            if (project.hasProperty('quitAfterJoinSeconds')) {
+                systemProperty 'kapok.diag.quitAfterJoinSeconds', project.property('quitAfterJoinSeconds')
+            }
+            // Flags for the game's own JVM, not gradle's. Used to reproduce a
+            // machine the host is not: -XX:ActiveProcessorCount=4 is how a
+            // 24-core box gets Sodium's single-threaded mesh builder. Timing
+            // measured under it is not the host's timing.
+            if (project.hasProperty('extraJvmArgs')) {
+                jvmArguments.addAll(project.property('extraJvmArgs').toString().tokenize())
+            }
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+}

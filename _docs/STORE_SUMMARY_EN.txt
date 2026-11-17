@@ -1,0 +1,1 @@
+Cuts the waits that stall a large modpack: fewer class reads at startup and a server thread that no longer parks on chunk work.

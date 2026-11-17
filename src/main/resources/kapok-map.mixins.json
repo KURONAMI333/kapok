@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.kuronami.kapok.mixin.map",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MapPreviewChunkGuardMixin",
+    "MapItemBiomePreviewMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
